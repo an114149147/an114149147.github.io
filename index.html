@@ -1,0 +1,331 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>今日打卡</title>
+  <meta name="description" content="只显示今天记录的打卡卡片页面" />
+  <style>
+    :root {
+      --bg: #f5f5f7;
+      --panel: rgba(255,255,255,.92);
+      --card: #ffffff;
+      --text: #1d1d1f;
+      --muted: #6e6e73;
+      --line: rgba(0,0,0,.08);
+      --blue: #0071e3;
+      --shadow: 0 12px 30px rgba(0,0,0,.08);
+      --shadow-soft: 0 6px 18px rgba(0,0,0,.05);
+      --radius-xl: 28px;
+      --radius-lg: 22px;
+      --radius-md: 18px;
+      --max: 880px;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      min-height: 100vh;
+      color: var(--text);
+      font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text", "Segoe UI", Roboto, "PingFang SC", "Microsoft YaHei", sans-serif;
+      background:
+        radial-gradient(circle at top center, rgba(0,113,227,.08), transparent 28%),
+        var(--bg);
+    }
+    .wrap {
+      max-width: var(--max);
+      margin: 0 auto;
+      padding: 22px 14px 34px;
+    }
+    .hero {
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: var(--radius-xl);
+      box-shadow: var(--shadow);
+      backdrop-filter: blur(20px);
+      -webkit-backdrop-filter: blur(20px);
+      padding: 24px 24px 20px;
+      display: flex;
+      justify-content: space-between;
+      align-items: end;
+      gap: 14px;
+      flex-wrap: wrap;
+    }
+    h1, h2, p { margin: 0; }
+    h1 {
+      font-size: clamp(30px, 6vw, 50px);
+      line-height: .96;
+      letter-spacing: -0.03em;
+    }
+    .sub {
+      margin-top: 10px;
+      color: var(--muted);
+      line-height: 1.7;
+      font-size: 14px;
+      word-break: break-all;
+    }
+    .status {
+      margin-top: 12px;
+      color: var(--muted);
+      font-size: 14px;
+      line-height: 1.7;
+    }
+    button, a.btn {
+      appearance: none;
+      border: 1px solid var(--line);
+      background: #fff;
+      color: var(--text);
+      padding: 11px 16px;
+      border-radius: 999px;
+      text-decoration: none;
+      font-size: 14px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: transform .14s ease, box-shadow .14s ease;
+      box-shadow: 0 1px 2px rgba(0,0,0,.04);
+      white-space: nowrap;
+    }
+    button:hover, a.btn:hover {
+      transform: translateY(-1px);
+      box-shadow: 0 8px 18px rgba(0,0,0,.08);
+    }
+    button.primary, a.btn.primary {
+      background: var(--blue);
+      color: #fff;
+      border-color: transparent;
+    }
+    .cards {
+      margin-top: 18px;
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 16px;
+    }
+    .card {
+      background: var(--card);
+      border: 1px solid var(--line);
+      border-radius: var(--radius-lg);
+      box-shadow: var(--shadow-soft);
+      padding: 20px;
+      display: grid;
+      gap: 14px;
+    }
+    .time {
+      font-size: 32px;
+      font-weight: 700;
+      letter-spacing: -0.03em;
+      line-height: 1;
+    }
+    .kv {
+      display: grid;
+      gap: 10px;
+    }
+    .row {
+      display: grid;
+      grid-template-columns: 74px 1fr;
+      gap: 10px;
+      align-items: center;
+      border-top: 1px solid var(--line);
+      padding-top: 10px;
+    }
+    .k {
+      color: var(--muted);
+      font-size: 13px;
+      font-weight: 700;
+    }
+    .v {
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
+      font-size: 16px;
+      word-break: break-word;
+    }
+    .empty {
+      margin-top: 18px;
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: var(--radius-xl);
+      box-shadow: var(--shadow);
+      padding: 36px 22px;
+      color: var(--muted);
+      text-align: center;
+      line-height: 1.8;
+    }
+    .ok { color: #17855f; font-weight: 700; }
+    .warn { color: #b16c13; font-weight: 700; }
+    @media (max-width: 760px) {
+      .cards { grid-template-columns: 1fr; }
+      .time { font-size: 26px; }
+      .row { grid-template-columns: 64px 1fr; }
+    }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <section class="hero">
+      <div>
+        <h1>今日打卡</h1>
+        <p class="sub" id="todayText">只显示今天的打卡卡片。</p>
+        <div class="status" id="status">正在加载最新内容…</div>
+      </div>
+      <button class="primary" id="refreshBtn">刷新</button>
+    </section>
+
+    <main id="main"></main>
+  </div>
+
+  <script>
+    const GIST_API_URL = 'https://api.github.com/gists/91eb5bea3e135a7a20de3a341858375c';
+    const RAW_FALLBACK_URL = 'https://gist.githubusercontent.com/an114149147/91eb5bea3e135a7a20de3a341858375c/raw/data.txt';
+    const TARGET_BASE = 'https://tlms.tsc.u-tokai.ac.jp/mod/attendance/attendance.php';
+    const EMBEDDED_FALLBACK = `------\n2026/6/21 11:10\nsessid: 210577\nqrpass: gympdh\n------\n2026/6/21 11:11\nsessid: 210577\nqrpass: gympdh\n------\n2026/6/21 11:11\nsessid: 206919\nqrpass: tvbvb5\n------\n2026/6/21 11:59\nsessid: 206919\nqrpass: tvbvb5\n------\n2026/6/21 12:39\nsessid: 207577\nqrpass: olqful`;
+
+    const $ = (id) => document.getElementById(id);
+    const mainEl = $('main');
+    const statusEl = $('status');
+    const todayTextEl = $('todayText');
+    const refreshBtn = $('refreshBtn');
+
+    function escapeHtml(str) {
+      return String(str).replace(/[&<>"']/g, (m) => ({
+        '&': '&amp;',
+        '<': '&lt;',
+        '>': '&gt;',
+        '"': '&quot;',
+        "'": '&#39;'
+      }[m]));
+    }
+
+    function normalizeDateParts(datetimeStr) {
+      const m = String(datetimeStr).trim().match(/^(\d{4})\/(\d{1,2})\/(\d{1,2})(?:\s+(\d{1,2}:\d{2}))?$/);
+      if (!m) return null;
+      const year = Number(m[1]);
+      const month = Number(m[2]);
+      const day = Number(m[3]);
+      const time = m[4] || '';
+      const dateKey = `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+      return { year, month, day, time, dateKey };
+    }
+
+    function parseBlocks(text) {
+      return text
+        .split(/^-{2,}\s*$/m)
+        .map(s => s.trim())
+        .filter(Boolean)
+        .map((block) => {
+          const lines = block.split(/\r?\n/).map(v => v.trim()).filter(Boolean);
+          const item = { timeFull: '', dateKey: '', timeOnly: '', year: 0, month: 0, day: 0, sessid: '', qrpass: '' };
+          if (lines.length) item.timeFull = lines[0];
+          const parts = normalizeDateParts(item.timeFull);
+          if (parts) {
+            item.dateKey = parts.dateKey;
+            item.timeOnly = parts.time || '--:--';
+            item.year = parts.year;
+            item.month = parts.month;
+            item.day = parts.day;
+          }
+          for (const line of lines.slice(1)) {
+            const i = line.indexOf(':');
+            if (i === -1) continue;
+            const key = line.slice(0, i).trim().toLowerCase();
+            const value = line.slice(i + 1).trim();
+            if (key === 'sessid') item.sessid = value;
+            if (key === 'qrpass') item.qrpass = value;
+          }
+          return item;
+        })
+        .filter(item => item.dateKey);
+    }
+
+    function buildJumpUrl(item) {
+      const url = new URL(TARGET_BASE);
+      url.searchParams.set('qrpass', item.qrpass || '');
+      url.searchParams.set('sessid', item.sessid || '');
+      return url.toString();
+    }
+
+    function getTodayKey() {
+      const now = new Date();
+      const y = now.getFullYear();
+      const m = String(now.getMonth() + 1).padStart(2, '0');
+      const d = String(now.getDate()).padStart(2, '0');
+      return `${y}-${m}-${d}`;
+    }
+
+    function renderCards(records) {
+      const todayKey = getTodayKey();
+      const todayItems = records.filter(item => item.dateKey === todayKey)
+        .sort((a, b) => (a.timeOnly || '').localeCompare(b.timeOnly || ''));
+
+      const now = new Date();
+      todayTextEl.textContent = `今天：${now.getFullYear()} 年 ${now.getMonth() + 1} 月 ${now.getDate()} 日`;
+
+      if (!todayItems.length) {
+        mainEl.innerHTML = `<section class="empty">今天还没有记录。<br>等 Gist 出现今天的数据后，这里会自动显示“去打卡”卡片。</section>`;
+        return;
+      }
+
+      mainEl.innerHTML = `
+        <section class="cards">
+          ${todayItems.map(item => `
+            <article class="card">
+              <div class="time">${escapeHtml(item.timeOnly)}</div>
+              <div class="kv">
+                <div class="row"><div class="k">sessid</div><div class="v">${escapeHtml(item.sessid || '-')}</div></div>
+                <div class="row"><div class="k">出席码</div><div class="v">${escapeHtml(item.qrpass || '-')}</div></div>
+              </div>
+              <div>
+                <a class="btn primary" href="${escapeHtml(buildJumpUrl(item))}" target="_blank" rel="noreferrer">去打卡</a>
+              </div>
+            </article>
+          `).join('')}
+        </section>
+      `;
+    }
+
+    async function tryLoadFromApi() {
+      const resp = await fetch(GIST_API_URL, {
+        headers: { 'Accept': 'application/vnd.github+json' },
+        cache: 'no-store'
+      });
+      if (!resp.ok) throw new Error(`GitHub API 返回 ${resp.status}`);
+      const data = await resp.json();
+      const files = data && data.files ? Object.values(data.files) : [];
+      if (!files.length) throw new Error('没有找到文件');
+      const file = files[0];
+      if (file.content) return file.content;
+      if (file.raw_url) {
+        const rawResp = await fetch(file.raw_url, { cache: 'no-store' });
+        if (!rawResp.ok) throw new Error(`raw_url 返回 ${rawResp.status}`);
+        return await rawResp.text();
+      }
+      throw new Error('没有可读取的内容');
+    }
+
+    async function tryLoadFromRaw() {
+      const resp = await fetch(RAW_FALLBACK_URL, { cache: 'no-store' });
+      if (!resp.ok) throw new Error(`raw 地址返回 ${resp.status}`);
+      return await resp.text();
+    }
+
+    async function loadData() {
+      statusEl.textContent = '正在加载最新内容…';
+      try {
+        const text = await tryLoadFromApi();
+        renderCards(parseBlocks(text));
+        statusEl.innerHTML = '<span class="ok">已成功读取最新内容。</span>';
+        return;
+      } catch (apiErr) {
+        try {
+          const text = await tryLoadFromRaw();
+          renderCards(parseBlocks(text));
+          statusEl.innerHTML = '<span class="ok">GitHub API 读取失败，已改用 raw 地址读取最新内容。</span>';
+          return;
+        } catch (rawErr) {
+          renderCards(parseBlocks(EMBEDDED_FALLBACK));
+          statusEl.innerHTML = `<span class="warn">无法在线读取（${escapeHtml(apiErr.message)} / ${escapeHtml(rawErr.message)}），已显示内置备用内容。</span>`;
+        }
+      }
+    }
+
+    refreshBtn.addEventListener('click', loadData);
+    loadData();
+  </script>
+</body>
+</html>
